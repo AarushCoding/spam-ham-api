@@ -3,69 +3,221 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Spam Guard</title>
+    <title>Mail Filter v1.0</title>
     <style>
         :root { 
-            --bg: #0a0a0a; --surface: #1a1a1a; --accent: #ffffff; 
-            --grey-text: #b0b0b0; --muted: #888888; --orange: #ff9500;
-            --pos: #4ade80; --neg: #f87171;
+            --bg: #0a0a0a; 
+            --surface: #1a1a1a;
+            --accent: #ffffff; 
+            --grey-text: #b0b0b0; 
+            --muted: #888888;
+            --orange: #ff9500;
+            --pos: #4ade80;
+            --neg: #f87171;
+            --neu: #60a5fa;
         }
+
         body { 
-            font-family: -apple-system, sans-serif; background: var(--bg); color: var(--accent);
-            display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg); color: var(--accent); 
+            display: flex; justify-content: center; align-items: center; 
+            height: 100vh; margin: 0; overflow: hidden;
         }
-        .container { width: 90%; max-width: 450px; }
-        h1 { font-weight: 300; letter-spacing: 4px; font-size: 11px; text-align: center; text-transform: uppercase; margin-bottom: 50px; }
+
+        .container { width: 90%; max-width: 450px; padding: 20px; position: relative; }
+
+        h1 { 
+            font-weight: 300; letter-spacing: 4px; font-size: 13px; 
+            color: var(--accent); margin-bottom: 50px; text-align: center;
+            text-transform: uppercase;
+        }
+        
+        .input-container { position: relative; width: 100%; }
+
         textarea {
-            width: 100%; background: transparent; border: none; border-bottom: 1px solid var(--surface);
-            color: var(--accent); padding: 12px 0; font-size: 20px; outline: none; resize: none;
+            width: 100%; background: transparent; border: none;
+            border-bottom: 1px solid var(--surface); color: var(--accent);
+            padding: 12px 0; font-size: 20px; outline: none;
+            resize: none; transition: 0.4s; margin-bottom: 5px;
+            font-family: inherit;
         }
         textarea:focus { border-bottom: 1px solid var(--orange); }
+
+        .meta-row { display: flex; justify-content: space-between; margin-bottom: 25px; }
+
+        #char-count { font-size: 10px; letter-spacing: 1px; color: var(--muted); transition: 0.3s; }
+        #char-count.warning { color: var(--orange); font-weight: bold; }
+
+        .reset-link { 
+            font-size: 10px; letter-spacing: 1px; color: var(--muted); 
+            cursor: pointer; text-transform: uppercase; transition: 0.3s;
+            background: none; border: none; padding: 0;
+        }
+        .reset-link:hover { color: var(--orange); }
+
         button { 
-            background: transparent; color: var(--accent); border: 1px solid var(--muted);
-            padding: 14px; width: 100%; font-size: 10px; letter-spacing: 3px;
-            text-transform: uppercase; margin-top: 20px; cursor: pointer;
+            background: transparent; color: var(--accent); 
+            border: 1px solid var(--muted); padding: 14px; 
+            border-radius: 2px; cursor: pointer; width: 100%;
+            font-size: 10px; letter-spacing: 3px; font-weight: 600;
+            text-transform: uppercase; transition: 0.3s;
         }
-        button:hover { border-color: var(--orange); color: var(--orange); }
-        .result-box { margin-top: 50px; display: none; text-align: center; }
-        .vibe-label { font-size: 10px; letter-spacing: 3px; color: var(--muted); text-transform: uppercase; }
-        .vibe-text { font-size: 52px; font-weight: 800; margin: 10px 0; }
-        .score-track { width: 100%; height: 2px; background: var(--surface); margin: 30px 0; position: relative; }
-        #pointer { 
-            position: absolute; width: 12px; height: 12px; background: white; 
-            border-radius: 50%; top: -5px; left: 50%; transform: translateX(-50%); transition: 0.8s;
+        button:hover:not(:disabled) { border-color: var(--orange); color: var(--orange); }
+        button:disabled { opacity: 0.2; cursor: not-allowed; }
+
+        #status { 
+            height: 20px; font-size: 10px; color: var(--grey-text); 
+            margin-top: 20px; letter-spacing: 1.5px; text-align: center;
+            text-transform: uppercase;
         }
+
+        .result-box { 
+            margin-top: 50px; display: none; text-align: center; 
+            animation: slideUp 0.6s cubic-bezier(0.23, 1, 0.32, 1); 
+        }
+
+        @keyframes slideUp { 
+            from { opacity: 0; transform: translateY(20px); } 
+            to { opacity: 1; transform: translateY(0); } 
+        }
+        
+        .vibe-label { font-size: 10px; letter-spacing: 3px; color: var(--muted); margin-bottom: 10px; text-transform: uppercase; }
+
+        .vibe-text { 
+            font-size: 52px; font-weight: 800; margin-bottom: 10px; 
+            letter-spacing: -1px; transition: color 0.5s ease;
+        }
+
+        .score-track {
+            width: 100%; height: 6px; background: var(--surface);
+            margin: 30px 0; position: relative; border-radius: 2px;
+        }
+        #score-pointer {
+            position: absolute; width: 12px; height: 12px; 
+            background: white; border-radius: 50%; top: -3px;
+            left: 50%; transition: left 1.2s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.5s ease;
+            transform: translateX(-50%);
+        }
+
+        .stats { 
+            font-size: 11px; color: var(--grey-text); 
+            letter-spacing: 1px; display: flex; justify-content: center; 
+            gap: 25px; align-items: center; text-transform: uppercase;
+        }
+        
+        .copy-icon { cursor: pointer; width: 16px; height: 16px; fill: var(--muted); transition: 0.2s; }
+        .copy-icon:hover { fill: var(--orange); }
     </style>
 </head>
 <body>
+
     <div class="container">
-        <h1>Inbound Security v1.0</h1>
-        <textarea id="input" rows="1" placeholder="Enter email text..." oninput="this.style.height='';this.style.height=this.scrollHeight+'px'"></textarea>
-        <button onclick="checkSecurity()">Scan Message</button>
+        <h1>Mail Classifier v1.0</h1>
+        
+        <div class="input-container">
+            <textarea id="input" rows="1" placeholder="Enter message..." maxlength="1000" oninput="updateUI()"></textarea>
+            <div class="meta-row">
+                <span id="char-count">0 / 1000</span>
+                <button class="reset-link" onclick="resetApp()">[ Reset ]</button>
+            </div>
+        </div>
+        
+        <button id="btn" onclick="checkMail()">Run Analysis</button>
+        
+        <div id="status"></div>
+
         <div id="resultBox" class="result-box">
-            <div class="vibe-label">Verdict</div>
-            <div id="vibe" class="vibe-text">-</div>
-            <div class="score-track"><div id="pointer"></div></div>
-            <div id="stats" style="font-size: 11px; color: var(--grey-text); letter-spacing: 1px; text-transform: uppercase;"></div>
+            <div class="vibe-label">Classification</div>
+            <div id="label" class="vibe-text">-</div>
+            
+            <div class="score-track">
+                <div id="score-pointer"></div>
+            </div>
+
+            <div class="stats">
+                <span id="conf">Confidence: -</span>
+                <svg id="copyBtn" class="copy-icon" onclick="copyResult()" viewBox="0 0 24 24">
+                    <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                </svg>
+            </div>
         </div>
     </div>
+
     <script>
-        async function checkSecurity() {
+        // Replace with your shared Render URL
+        const API_URL = "https://sentiment-api.aarushnaik.co.uk";
+        let lastResult = "";
+
+        function updateUI() {
+            const input = document.getElementById('input');
+            const count = document.getElementById('char-count');
+            input.style.height = '';
+            input.style.height = input.scrollHeight + 'px';
+            const len = input.value.length;
+            count.innerText = `${len} / 1000`;
+            if (len >= 900) count.classList.add('warning');
+            else count.classList.remove('warning');
+        }
+
+        function resetApp() {
+            document.getElementById('input').value = "";
+            document.getElementById('resultBox').style.display = 'none';
+            document.getElementById('status').innerText = "";
+            updateUI();
+        }
+
+        async function checkMail() {
             const text = document.getElementById('input').value;
-            if(!text) return;
-            const res = await fetch('/analyze', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({text})
-            });
-            const data = await res.json();
-            document.getElementById('resultBox').style.display = 'block';
-            document.getElementById('vibe').innerText = data.verdict.toUpperCase();
-            const color = data.verdict === "Spam" ? "var(--neg)" : "var(--pos)";
-            document.getElementById('vibe').style.color = color;
-            document.getElementById('pointer').style.background = color;
-            document.getElementById('pointer').style.left = (data.score * 100) + '%';
-            document.getElementById('stats').innerText = `Threat Level: ${Math.round(data.score*100)}% | Confidence: ${data.confidence}`;
+            const btn = document.getElementById('btn');
+            const status = document.getElementById('status');
+            const resBox = document.getElementById('resultBox');
+            const labelEl = document.getElementById('label');
+            const pointer = document.getElementById('score-pointer');
+
+            if (!text.trim()) return;
+
+            btn.disabled = true;
+            resBox.style.display = 'none';
+            pointer.style.left = "50%"; 
+            status.innerText = "Scanning Metadata...";
+
+            try {
+                const response = await fetch(`${API_URL}/spam`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text })
+                });
+
+                const data = await response.json();
+                
+                labelEl.innerText = data.label.toUpperCase();
+                let color = data.label === "Spam" ? "var(--neg)" : "var(--pos)";
+                
+                labelEl.style.color = color;
+                pointer.style.background = color;
+
+                document.getElementById('conf').innerText = `Confidence: ${data.confidence}`;
+                lastResult = `Result: ${data.label} | Confidence: ${data.confidence}`;
+                
+                status.innerText = "";
+                resBox.style.display = 'block';
+
+                // Pointer moves Left for Ham (Safe), Right for Spam (Danger)
+                const position = data.label === "Spam" ? 85 : 15;
+                setTimeout(() => { pointer.style.left = `${position}%`; }, 100);
+
+            } catch (err) {
+                status.innerText = "Filter Offline";
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        function copyResult() {
+            navigator.clipboard.writeText(lastResult);
+            const icon = document.getElementById('copyBtn');
+            icon.style.fill = "var(--orange)";
+            setTimeout(() => icon.style.fill = "var(--muted)", 1000);
         }
     </script>
 </body>
