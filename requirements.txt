@@ -1,4 +1,6 @@
 flask
 flask-cors
+textblob
 scikit-learn
+pandas
 gunicorn
