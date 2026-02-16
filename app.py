@@ -1,49 +1,70 @@
 import os
-from flask import Flask, request, jsonify, render_template
-from flask_cors import CORS
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.naive_bayes import MultinomialNB
 import pickle
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+from textblob import TextBlob
 
 app = Flask(__name__)
 CORS(app)
 
-# Minimal training data to initialize the model on first run
-# You can replace this with a larger .pkl file later
-emails = [
-    "Get rich quick, click here!", "Free entry to win cash", 
-    "Meeting at 5pm today", "Hey, are we still on for lunch?",
-    "Congratulations, you won a prize", "Can you send me that report?",
-    "URGENT: Your account is locked", "Dinner at my place tonight?"
-]
-labels = [1, 1, 0, 0, 1, 0, 1, 0] # 1=Spam, 0=Clean
+# Global variables for the spam model
+model = None
+vectorizer = None
 
-vectorizer = TfidfVectorizer(stop_words='english')
-X = vectorizer.fit_transform(emails)
-model = MultinomialNB()
-model.fit(X, labels)
+# Load spam files
+try:
+    with open('spam_model.pkl', 'rb') as f:
+        model = pickle.load(f)
+    with open('vectorizer.pkl', 'rb') as f:
+        vectorizer = pickle.load(f)
+except Exception as e:
+    print(f"Spam model load error: {e}")
 
 @app.route('/')
 def home():
-    return render_template('index.html')
+    return jsonify({"status": "active", "features": ["sentiment", "spam"]})
 
+# ROUTE 1: Sentiment (for sentiment.aarushnaik.co.uk)
 @app.route('/analyze', methods=['POST'])
-def analyze():
+def analyze_sentiment():
     data = request.get_json()
     if not data or 'text' not in data:
-        return jsonify({'error': 'No text provided'}), 400
+        return jsonify({'error': 'No text'}), 400
     
-    text_vector = vectorizer.transform([data['text']])
-    probs = model.predict_proba(text_vector)[0]
-    spam_score = round(probs[1], 3)
+    blob = TextBlob(data['text'])
+    score = round(blob.sentiment.polarity, 3)
+    conf_value = 100 - (abs(blob.sentiment.subjectivity - 0.5) * 100)
     
-    verdict = "Spam" if spam_score > 0.5 else "Clean"
-    conf = round(max(probs) * 100, 1)
+    vibe = "Neutral"
+    if score > 0.1: vibe = "Positive"
+    elif score < -0.1: vibe = "Negative"
     
     return jsonify({
-        'verdict': verdict,
-        'score': spam_score,
-        'confidence': f"{conf}%"
+        'vibe': vibe,
+        'score': score,
+        'confidence': f"{round(max(min(conf_value, 99.9), 50.1), 1)}%"
+    })
+
+# ROUTE 2: Spam (for email.aarushnaik.co.uk)
+@app.route('/spam', methods=['POST'])
+def analyze_spam():
+    data = request.get_json()
+    if not data or 'text' not in data:
+        return jsonify({'error': 'No text'}), 400
+    
+    if model is None or vectorizer is None:
+        return jsonify({'error': 'Spam model not loaded'}), 500
+
+    vec = vectorizer.transform([data['text']])
+    prediction = model.predict(vec)[0]
+    probs = model.predict_proba(vec)[0]
+    
+    label = "Spam" if prediction == 1 else "Ham"
+    conf = probs[1] if prediction == 1 else probs[0]
+    
+    return jsonify({
+        'label': label,
+        'confidence': f"{round(conf * 100, 1)}%"
     })
 
 if __name__ == "__main__":
