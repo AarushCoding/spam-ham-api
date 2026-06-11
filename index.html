@@ -179,7 +179,7 @@
             btn.disabled = true;
             resBox.style.display = 'none';
             pointer.style.left = "50%"; 
-            status.innerText = "Scanning Metadata...";
+            status.innerText = "Model waking up. This can take up to 1 minute.";
 
             try {
                 const response = await fetch(`${API_URL}/spam`, {
